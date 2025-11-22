@@ -2,7 +2,7 @@
 A real-time market data platform for learning FastAPI, PostgreSQL, WebSockets, and high-performance Python.
 
 ## Overview
-Hermes Market Engine is a learning-driven project with a goal to build a small but "production-inspired" market data platform capable of:
+Hermes Market Engine is a learning-driven project with a goal to build a small but "production-inspired" market data platform capa ble of:
 - Listening to an exchange’s real-time WebSocket stream
 - Maintaining an accurate, queryable orderbook
 - Computing core orderbook analytics such as spread, mid-price, imbalance, VWAP and so on
