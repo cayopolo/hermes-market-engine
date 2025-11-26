@@ -3,7 +3,7 @@ name = "hermes-market-engine"
 version = "0.1.0"
 description = "A real-time market data platform for learning FastAPI, PostgreSQL, WebSockets, and high-performance Python."
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.13"
 dependencies = [
     "asyncio>=4.0.0",
     "asyncpg>=0.31.0",
@@ -20,13 +20,6 @@ line-length = 140
 fix = true
 target-version = "py313"
 
-[tool.ruff.format]
-skip-magic-trailing-comma = true
-
-[tool.ruff.lint.isort]
-split-on-trailing-comma = false
-
-[tool.ruff.lint]
 select = [
     "ANN",    # flake8-annotations
     "ARG",    # flake8-unused-arguments
@@ -36,8 +29,7 @@ select = [
     "E",      # pycodestyle
     "ERA",    # eradicate
     "F",      # pyflakes
-    "FA",     # flake8-future-annotations
-    "FBT001", # flake8-boolean-trap
+    "FBT",    # flake8-boolean-trap
     "G",      # flake8-logging-format
     "I",      # isort
     "ICN",    # flake8-import-conventions
@@ -59,4 +51,10 @@ select = [
     "UP",     # pyupgrade
     "W",      # pycodestyle
 ]
-ignore = ["ANN204", "E501", "S101", "SLF001", "RUF001"]
+ignore = ["ANN204", "S101", "SLF001", "RUF001"]
+
+[tool.ruff.isort]
+split-on-trailing-comma = false
+
+[tool.ruff.format]
+skip-magic-trailing-comma = true
