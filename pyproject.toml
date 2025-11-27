@@ -9,6 +9,7 @@ dependencies = [
     "asyncpg>=0.31.0",
     "dotenv>=0.9.9",
     "ruff>=0.14.5",
+    "sortedcontainers>=2.4.0",
     "websockets>=15.0.1",
 ]
 
@@ -20,6 +21,7 @@ line-length = 140
 fix = true
 target-version = "py313"
 
+[tool.ruff.lint]
 select = [
     "ANN",    # flake8-annotations
     "ARG",    # flake8-unused-arguments
@@ -53,7 +55,7 @@ select = [
 ]
 ignore = ["ANN204", "S101", "SLF001", "RUF001"]
 
-[tool.ruff.isort]
+[tool.ruff.lint.isort]
 split-on-trailing-comma = false
 
 [tool.ruff.format]

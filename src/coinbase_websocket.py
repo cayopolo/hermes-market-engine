@@ -3,11 +3,13 @@ import json
 import os
 import uuid
 from datetime import datetime
+from operator import neg
 from pathlib import Path
 
 import asyncpg
 import websockets
 from dotenv import load_dotenv
+from sortedcontainers import SortedDict
 from websockets.exceptions import ConnectionClosedError, ConnectionClosedOK
 
 load_dotenv()
@@ -65,6 +67,61 @@ async def insert_raw_event(conn: asyncpg.connection.Connection, connection_id: u
     )
 
 
+async def local_order_book(
+    event_type: str, updates: list[dict[str, str]], bids: SortedDict, asks: SortedDict
+) -> tuple[SortedDict, SortedDict]:
+    """
+    Maintain local order book from WebSocket updates.
+
+    Processes snapshots (full book initialisation) and updates (incremental changes).
+    Removes price levels when quantity is 0.
+
+    TODOs:
+        - Add snapshot freshness checks
+        - Implement gap detection via sequence_num
+        - Investigate why zero-quantity updates reference non-existent price levels.
+    """
+    # TODO: Add checks for most up to date snapshot. Happy path is ID_{snapshot} < Upd_{first}
+    if event_type == "snapshot":
+        # Bulk initialise snapshot - more efficient than individual inserts
+        bid_items = []
+        ask_items = []
+
+        for update in updates:
+            price = float(update["price_level"])
+            quantity = float(update["new_quantity"])
+
+            if update["side"] == "bid":
+                bid_items.append((price, quantity))
+            else:
+                ask_items.append((price, quantity))
+
+        bids.update(bid_items)
+        asks.update(ask_items)
+
+    else:  # event_type == "update"
+        # TODO: Implement gap detection based on sequence_num
+        for update in updates:
+            price = float(update["price_level"])
+            quantity = float(update["new_quantity"])
+            side = update["side"]
+
+            if side == "bid":
+                if quantity == 0.0:
+                    # Using pop as we are seeing cases where quantity set to 0.0 but price level not in the orderbook.
+                    # TODO: Check what the cause of this issue could be.
+                    bids.pop(price, None)
+                else:
+                    bids[price] = quantity
+            else:
+                if quantity == 0.0:
+                    asks.pop(price, None)
+                else:
+                    asks[price] = quantity
+
+    return bids, asks
+
+
 async def websocket_listener() -> None:
     # Generate unique connection ID for this WebSocket session
     connection_id = uuid.uuid4()
@@ -74,6 +131,8 @@ async def websocket_listener() -> None:
 
     conn = None
     websocket = None
+    bids = None
+    asks = None
 
     try:
         # Connect to PostgreSQL
@@ -90,6 +149,12 @@ async def websocket_listener() -> None:
             print(f"Subscribed to {CHANNEL} channel for {PRODUCT_ID}")
 
             message_count = 0
+            # Initialise order book with SortedDict
+            # Bids: highest to lowest (negative key)
+            # Asks: lowest to highest
+            bids = SortedDict(neg)
+            asks = SortedDict()
+
             while True:
                 # Receive next message
                 response = await websocket.recv()
@@ -99,6 +164,12 @@ async def websocket_listener() -> None:
                 if json_response.get("channel") == "subscriptions":
                     print(f"Subscription confirmed: {json_response}")
                     continue
+
+                # Process all messages
+                events = json_response["events"]
+                updates = events[0]["updates"]
+                event_type = events[0]["type"]
+                bids, asks = await local_order_book(event_type, updates, bids, asks)
 
                 # Insert event into database
                 await insert_raw_event(conn, connection_id, json_response)
@@ -122,6 +193,16 @@ async def websocket_listener() -> None:
         if conn:
             await conn.close()
             print("\nPostgreSQL connection closed")
+
+            if bids:
+                # Display order book
+                print("BIDS (highest to lowest):")
+                for price, qty in list(bids.items())[:10]:
+                    print(f"  {price}: {qty}")
+            if asks:
+                print("\nASKS (lowest to highest):")
+                for price, qty in list(asks.items())[:10]:
+                    print(f"  {price}: {qty}")
 
 
 async def unsubscribe(websocket: websockets.ClientConnection) -> None:
