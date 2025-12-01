@@ -12,7 +12,11 @@ from dotenv import load_dotenv
 from sortedcontainers import SortedDict
 from websockets.exceptions import ConnectionClosedError, ConnectionClosedOK
 
+from logging_config import get_logger, setup_logging
+
 load_dotenv()
+
+logger = get_logger(__name__)
 
 DB_USER = os.getenv("DB_USER")
 DB_NAME = os.getenv("DB_NAME")
@@ -31,7 +35,7 @@ async def insert_raw_event(conn: asyncpg.connection.Connection, connection_id: u
     # Extract event details - handle cases where events array might be empty
     events = message.get("events", [])
     if not events:
-        print(f"Warning: Empty events array in message seq={message.get('sequence_num')}")
+        logger.warning("Empty events array in message seq=%s", message.get("sequence_num"))
         return
 
     # For l2_data, there's typically only one event
@@ -125,7 +129,7 @@ async def local_order_book(
 async def websocket_listener() -> None:
     # Generate unique connection ID for this WebSocket session
     connection_id = uuid.uuid4()
-    print(f"Starting new connection session: {connection_id}")
+    logger.info("Starting new connection session: %s", connection_id)
 
     subscribe_message = json.dumps({"type": "subscribe", "channel": CHANNEL, "product_ids": [PRODUCT_ID]})
 
@@ -137,16 +141,16 @@ async def websocket_listener() -> None:
     try:
         # Connect to PostgreSQL
         conn = await asyncpg.connect(user=DB_USER, database=DB_NAME, password=DB_PASSWORD)
-        print("Connected to PostgreSQL")
+        logger.info("Connected to PostgreSQL")
 
         # Connect to Coinbase WebSocket
-        print(f"Connecting to {COINBASE_WEBSOCKET_URL}...")
+        logger.info("Connecting to %s...", COINBASE_WEBSOCKET_URL)
         async with websockets.connect(COINBASE_WEBSOCKET_URL, max_size=None, ping_interval=None) as websocket:
-            print("Connected to Coinbase WebSocket")
+            logger.info("Connected to Coinbase WebSocket")
 
             # Subscribe to channel
             await websocket.send(subscribe_message)
-            print(f"Subscribed to {CHANNEL} channel for {PRODUCT_ID}")
+            logger.info("Subscribed to %s channel for %s", CHANNEL, PRODUCT_ID)
 
             message_count = 0
             # Initialise order book with SortedDict
@@ -162,7 +166,7 @@ async def websocket_listener() -> None:
 
                 # Handle subscription acknowledgement
                 if json_response.get("channel") == "subscriptions":
-                    print(f"Subscription confirmed: {json_response}")
+                    logger.info("Subscription confirmed: %s", json_response)
                     continue
 
                 # Process all messages
@@ -176,23 +180,33 @@ async def websocket_listener() -> None:
 
                 message_count += 1
                 if message_count % 100 == 0:
-                    print(f"Processed {message_count} messages")
+                    logger.info("Processed %s messages", message_count)
 
     except ConnectionClosedOK as e:
-        print(f"WebSocket closed normally: {e}")
+        logger.info("WebSocket closed normally: %s", e)
 
     except ConnectionClosedError as e:
-        print(f"WebSocket closed with error: {e}")
+        logger.error("WebSocket closed with error: %s", e)
 
     except Exception as e:
-        print(f"Unexpected error: {type(e).__name__}: {e}")
+        logger.exception("Unexpected error: %s: %s", type(e).__name__, e)
         raise
 
     finally:
         # Clean up connections
         if conn:
             await conn.close()
-            print("\nPostgreSQL connection closed")
+            logger.info("PostgreSQL connection closed")
+
+        if bids:
+            # Display order book
+            logger.info("BIDS (highest to lowest):")
+            for price, qty in list(bids.items())[:10]:
+                logger.info("  %s: %s", price, qty)
+        if asks:
+            logger.info("ASKS (lowest to highest):")
+            for price, qty in list(asks.items())[:10]:
+                logger.info("  %s: %s", price, qty)
 
             if bids:
                 # Display order book
@@ -209,12 +223,15 @@ async def unsubscribe(websocket: websockets.ClientConnection) -> None:
     """Unsubscribe from WebSocket channel before closing."""
     unsubscribe_message = {"type": "unsubscribe", "product_ids": [PRODUCT_ID], "channel": CHANNEL}
     await websocket.send(json.dumps(unsubscribe_message))
-    print(f"Unsubscribed from {PRODUCT_ID} {CHANNEL} channel")
+    logger.info("Unsubscribed from %s %s channel", PRODUCT_ID, CHANNEL)
 
 
 if __name__ == "__main__":
+    # Initialize logging when running as standalone script
+    setup_logging(level="INFO")
+
     try:
         asyncio.run(websocket_listener())
 
     except KeyboardInterrupt:
-        print("\n\nShutting down gracefully...")
+        logger.info("Shutting down gracefully...")
