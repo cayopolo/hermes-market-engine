@@ -193,6 +193,14 @@ async def websocket_listener() -> None:
         raise
 
     finally:
+        # Save order book snapshot before closing
+        if conn and (bids and asks):
+            try:
+                await delete_existing_snapshots(conn)
+                await insert_orderbook_snapshot(conn, bids, asks)
+            except Exception as e:
+                logger.error("Failed to save order book snapshot: %s", e)
+
         # Clean up connections
         if conn:
             await conn.close()
@@ -208,15 +216,30 @@ async def websocket_listener() -> None:
             for price, qty in list(asks.items())[:10]:
                 logger.info("  %s: %s", price, qty)
 
-            if bids:
-                # Display order book
-                print("BIDS (highest to lowest):")
-                for price, qty in list(bids.items())[:10]:
-                    print(f"  {price}: {qty}")
-            if asks:
-                print("\nASKS (lowest to highest):")
-                for price, qty in list(asks.items())[:10]:
-                    print(f"  {price}: {qty}")
+
+async def delete_existing_snapshots(conn: asyncpg.connection.Connection) -> None:
+    """Delete existing order book snapshots from database."""
+    await conn.execute("DELETE FROM bid_orderbook_snapshot")
+    await conn.execute("DELETE FROM ask_orderbook_snapshot")
+    logger.info("Cleared existing order book snapshots from database")
+
+
+async def insert_orderbook_snapshot(conn: asyncpg.connection.Connection, bids: SortedDict, asks: SortedDict) -> None:
+    """Insert current order book snapshot into database."""
+    try:
+        # Insert bids
+        bid_records = [(i + 1, price, quantity) for i, (price, quantity) in enumerate(bids.items())]
+        await conn.executemany("INSERT INTO bid_orderbook_snapshot (id, price, quantity) VALUES ($1, $2, $3)", bid_records)
+        logger.info("Inserted %s bid levels", len(bid_records))
+
+        # Insert asks
+        ask_records = [(i + 1, price, quantity) for i, (price, quantity) in enumerate(asks.items())]
+        await conn.executemany("INSERT INTO ask_orderbook_snapshot (id, price, quantity) VALUES ($1, $2, $3)", ask_records)
+        logger.info("Inserted %s ask levels", len(ask_records))
+
+        logger.info("Order book snapshot saved to database")
+    except Exception as e:
+        logger.error("Error saving order book snapshot: %s", e)
 
 
 async def unsubscribe(websocket: websockets.ClientConnection) -> None:
