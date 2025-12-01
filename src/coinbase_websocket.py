@@ -72,8 +72,8 @@ async def insert_raw_event(conn: asyncpg.connection.Connection, connection_id: u
 
 
 async def local_order_book(
-    event_type: str, updates: list[dict[str, str]], bids: SortedDict, asks: SortedDict
-) -> tuple[SortedDict, SortedDict]:
+    event_type: str, event_sequence_num: int, orderbook_sequence_num: int, updates: list[dict[str, str]], bids: SortedDict, asks: SortedDict
+) -> tuple[SortedDict, SortedDict, int]:
     """
     Maintain local order book from WebSocket updates.
 
@@ -82,11 +82,14 @@ async def local_order_book(
 
     TODOs:
         - Add snapshot freshness checks
-        - Implement gap detection via sequence_num
+        - Add logic to handle gaps in order book updates (e.g., re-fetch snapshot).
         - Investigate why zero-quantity updates reference non-existent price levels.
     """
     # TODO: Add checks for most up to date snapshot. Happy path is ID_{snapshot} < Upd_{first}
     if event_type == "snapshot":
+        # Start orderbook updates from snapshot sequence number
+        orderbook_sequence_num = event_sequence_num
+        logger.info("Initialising order book with snapshot, event_seq=%s", orderbook_sequence_num)
         # Bulk initialise snapshot - more efficient than individual inserts
         bid_items = []
         ask_items = []
@@ -104,7 +107,19 @@ async def local_order_book(
         asks.update(ask_items)
 
     else:  # event_type == "update"
-        # TODO: Implement gap detection based on sequence_num
+        if event_sequence_num <= orderbook_sequence_num:
+            logger.warning("Received a stale order book update: seq=%s <= last_seq=%s", event_sequence_num, orderbook_sequence_num)
+            return bids, asks, orderbook_sequence_num
+
+        if event_sequence_num != orderbook_sequence_num + 1:
+            # TODO: Add logic to handle gaps in order book updates (e.g., re-fetch snapshot).
+            # Not sure if possible with coinbase websocket in use.
+            logger.warning(
+                "Detected a gap in order book updates. Another snapshot should be taken! expected_seq=%s, received_seq=%s",
+                orderbook_sequence_num + 1,
+                event_sequence_num,
+            )
+
         for update in updates:
             price = float(update["price_level"])
             quantity = float(update["new_quantity"])
@@ -123,7 +138,9 @@ async def local_order_book(
                 else:
                     asks[price] = quantity
 
-    return bids, asks
+        orderbook_sequence_num = event_sequence_num
+
+    return bids, asks, orderbook_sequence_num
 
 
 async def websocket_listener() -> None:
@@ -158,6 +175,7 @@ async def websocket_listener() -> None:
             # Asks: lowest to highest
             bids = SortedDict(neg)
             asks = SortedDict()
+            orderbook_sequence_num = -1
 
             while True:
                 # Receive next message
@@ -173,7 +191,11 @@ async def websocket_listener() -> None:
                 events = json_response["events"]
                 updates = events[0]["updates"]
                 event_type = events[0]["type"]
-                bids, asks = await local_order_book(event_type, updates, bids, asks)
+                event_sequence_num = json_response["sequence_num"]
+
+                bids, asks, orderbook_sequence_num = await local_order_book(
+                    event_type, event_sequence_num, orderbook_sequence_num, updates, bids=bids, asks=asks
+                )
 
                 # Insert event into database
                 await insert_raw_event(conn, connection_id, json_response)
