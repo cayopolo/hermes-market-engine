@@ -182,23 +182,24 @@ async def websocket_listener() -> None:
                 response = await websocket.recv()
                 json_response = json.loads(response)
 
-                # Handle subscription acknowledgement
-                if json_response.get("channel") == "subscriptions":
-                    logger.info("Subscription confirmed: %s", json_response)
-                    continue
-
-                # Process all messages
+                event_sequence_num = json_response["sequence_num"]
                 events = json_response["events"]
                 updates = events[0]["updates"]
                 event_type = events[0]["type"]
-                event_sequence_num = json_response["sequence_num"]
 
+                # Handle subscription acknowledgement
+                if json_response.get("channel") == "subscriptions":
+                    logger.info("Subscription confirmed: %s", json_response)
+                    orderbook_sequence_num = event_sequence_num
+                    continue
+
+                # Process all messages
                 bids, asks, orderbook_sequence_num = await local_order_book(
                     event_type, event_sequence_num, orderbook_sequence_num, updates, bids=bids, asks=asks
                 )
 
                 # Insert event into database
-                await insert_raw_event(conn, connection_id, json_response)
+                # await insert_raw_event(conn, connection_id, json_response)
 
                 message_count += 1
                 if message_count % 100 == 0:
