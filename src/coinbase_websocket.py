@@ -73,7 +73,7 @@ async def insert_raw_event(conn: asyncpg.connection.Connection, connection_id: u
 
 async def local_order_book(
     event_type: str, event_sequence_num: int, orderbook_sequence_num: int, updates: list[dict[str, str]], bids: SortedDict, asks: SortedDict
-) -> tuple[SortedDict, SortedDict, int]:
+) -> tuple[SortedDict, SortedDict, int, bool]:
     """
     Maintain local order book from WebSocket updates.
 
@@ -82,7 +82,6 @@ async def local_order_book(
 
     TODOs:
         - Add snapshot freshness checks
-        - Add logic to handle gaps in order book updates (e.g., re-fetch snapshot).
         - Investigate why zero-quantity updates reference non-existent price levels.
     """
     # TODO: Add checks for most up to date snapshot. Happy path is ID_{snapshot} < Upd_{first}
@@ -109,16 +108,13 @@ async def local_order_book(
     else:  # event_type == "update"
         if event_sequence_num <= orderbook_sequence_num:
             logger.warning("Received a stale order book update: seq=%s <= last_seq=%s", event_sequence_num, orderbook_sequence_num)
-            return bids, asks, orderbook_sequence_num
+            return bids, asks, orderbook_sequence_num, True
 
         if event_sequence_num != orderbook_sequence_num + 1:
-            # TODO: Add logic to handle gaps in order book updates (e.g., re-fetch snapshot).
-            # Not sure if possible with coinbase websocket in use.
-            logger.warning(
-                "Detected a gap in order book updates. Another snapshot should be taken! expected_seq=%s, received_seq=%s",
-                orderbook_sequence_num + 1,
-                event_sequence_num,
+            logger.error(
+                "CRITICAL GAP DETECTED! expected_seq=%s, received_seq=%s. MUST RE-SNAPSHOT.", orderbook_sequence_num + 1, event_sequence_num
             )
+            return bids, asks, orderbook_sequence_num, False
 
         for update in updates:
             price = float(update["price_level"])
@@ -140,7 +136,7 @@ async def local_order_book(
 
         orderbook_sequence_num = event_sequence_num
 
-    return bids, asks, orderbook_sequence_num
+    return bids, asks, orderbook_sequence_num, True
 
 
 async def websocket_listener() -> None:
@@ -183,9 +179,6 @@ async def websocket_listener() -> None:
                 json_response = json.loads(response)
 
                 event_sequence_num = json_response["sequence_num"]
-                events = json_response["events"]
-                updates = events[0]["updates"]
-                event_type = events[0]["type"]
 
                 # Handle subscription acknowledgement
                 if json_response.get("channel") == "subscriptions":
@@ -193,10 +186,19 @@ async def websocket_listener() -> None:
                     orderbook_sequence_num = event_sequence_num
                     continue
 
+                events = json_response["events"]
+                updates = events[0]["updates"]
+                event_type = events[0]["type"]
+
                 # Process all messages
-                bids, asks, orderbook_sequence_num = await local_order_book(
+                bids, asks, orderbook_sequence_num, is_success = await local_order_book(
                     event_type, event_sequence_num, orderbook_sequence_num, updates, bids=bids, asks=asks
                 )
+
+                if not is_success:
+                    # Gap detected: break the loop, forcing a clean restart/reconnect
+                    logger.error("Order book corrupted due to gap. Restarting WebSocket connection.")
+                    break  # Will exit the 'async with websockets.connect' block and restart/crash the outer function
 
                 # Insert event into database
                 # await insert_raw_event(conn, connection_id, json_response)
@@ -272,12 +274,24 @@ async def unsubscribe(websocket: websockets.ClientConnection) -> None:
     logger.info("Unsubscribed from %s %s channel", PRODUCT_ID, CHANNEL)
 
 
+async def main_loop() -> None:
+    # Main loop to manage WebSocket connection with automatic reconnection
+    while True:
+        try:
+            await websocket_listener()
+        except Exception as e:
+            logger.error("WebSocket listener failed with unexpected error: %s", e)
+
+        sleep_seconds = 3
+        logger.info("Waiting %s seconds before attempting reconnect.", sleep_seconds)
+        await asyncio.sleep(sleep_seconds)
+
+
 if __name__ == "__main__":
-    # Initialize logging when running as standalone script
     setup_logging(level="INFO")
 
     try:
-        asyncio.run(websocket_listener())
+        asyncio.run(main_loop())
 
     except KeyboardInterrupt:
         logger.info("Shutting down gracefully...")
