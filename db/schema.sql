@@ -2,7 +2,7 @@
 -- TABLE: raw_events_stream
 -- Purpose: Cold Path storage for all raw WebSocket messages
 -- ============================================================================
-CREATE TABLE raw_events_stream (
+CREATE TABLE IF NOT EXISTS raw_events_stream (
     -- Unique internal primary key for referencing the event record.
     id BIGSERIAL PRIMARY KEY,
     -- Generate on each connection
