@@ -15,6 +15,10 @@ dependencies = [
 ]
 
 [dependency-groups]
+dev = [
+    "pytest>=9.0.1",
+    "pytest-asyncio>=0.24.0",
+]
 sandbox = ["ipykernel>=7.1.0", "pandas>=2.3.3"]
 
 [tool.ruff]
@@ -61,3 +65,10 @@ split-on-trailing-comma = false
 
 [tool.ruff.format]
 skip-magic-trailing-comma = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test"]
+python_functions = ["test_"]
