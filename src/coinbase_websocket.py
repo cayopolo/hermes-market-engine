@@ -1,6 +1,5 @@
 import asyncio
 import json
-import os
 import uuid
 from datetime import datetime
 from operator import neg
@@ -8,24 +7,24 @@ from pathlib import Path
 
 import asyncpg
 import websockets
-from dotenv import load_dotenv
 from sortedcontainers import SortedDict
 from websockets.exceptions import ConnectionClosedError, ConnectionClosedOK
 
+from config import Settings
 from logging_config import get_logger, setup_logging
-
-load_dotenv()
 
 logger = get_logger(__name__)
 
-DB_USER = os.getenv("DB_USER")
-DB_NAME = os.getenv("DB_NAME")
-DB_PASSWORD = os.getenv("DB_PASSWORD")
+# Load configuration
+settings = Settings()
 
+DB_USER = settings.db_user
+DB_NAME = settings.db_name
+DB_PASSWORD = settings.db_password
 
-COINBASE_WEBSOCKET_URL = "wss://advanced-trade-ws.coinbase.com"
-PRODUCT_ID = "XRP-USD"
-CHANNEL = "level2"
+COINBASE_WEBSOCKET_URL = settings.coinbase_ws_url
+PRODUCT_ID = settings.product_id
+CHANNEL = settings.channel
 
 OUTPUT_PATH = Path(f"{CHANNEL.lower()}_{PRODUCT_ID.lower()}.json")
 
