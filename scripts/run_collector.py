@@ -20,18 +20,21 @@ logger = get_logger(__name__)
 
 async def main() -> None:
     service = DataCollectionService()
-    shutdown_task: asyncio.Task | None = None
 
     # Graceful shutdown handler
     def shutdown_handler(_sig: int, _frame: FrameType | None) -> None:
-        nonlocal shutdown_task
-        shutdown_task = asyncio.create_task(service.stop())
+        logger.info("Shutdown signal received")
+        if service.ws_client:
+            service.ws_client.should_run = False
 
     # When SIGINT or SIGTERM is triggered (like ctrl + c ) use shutdown_handler
     signal.signal(signal.SIGINT, shutdown_handler)
     signal.signal(signal.SIGTERM, shutdown_handler)
 
-    await service.start()
+    try:
+        await service.start()
+    finally:
+        await service.stop()
 
 
 if __name__ == "__main__":

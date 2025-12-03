@@ -33,7 +33,7 @@ class DataCollectionService:
         logger.info("Data Collection Service started")
 
         if self.ws_client is None:
-            raise RuntimeError("WebSocket client not initialized")
+            raise RuntimeError("WebSocket client not initialised")
         await self.ws_client.start()
 
     async def stop(self) -> None:

@@ -35,7 +35,9 @@ class OrderBook:
 
         # For updates, validate sequence
         if not self.initialised:
-            logger.debug("Skipping update before snapshot (sequence: %s)", sequence_num)
+            if not hasattr(self, "_waiting_logged"):
+                logger.warning("Order book not initialised. Waiting for snapshot event... (updates will be skipped)")
+                self._waiting_logged = True
             return True  # Not fatal - snapshot will arrive soon
 
         if sequence_num <= self.last_sequence:
