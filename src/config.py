@@ -19,6 +19,13 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379"
     redis_channel: str = "hermes:market_data"
 
+    # Cold Path (Database Batching)
+    db_batch_interval_seconds: float = Field(default=10.0, alias="DB_BATCH_INTERVAL_SECONDS")
+    db_batch_size: int = Field(default=1000, alias="DB_BATCH_SIZE")
+    db_pool_min_size: int = Field(default=2, alias="DB_POOL_MIN_SIZE")
+    db_pool_max_size: int = Field(default=10, alias="DB_POOL_MAX_SIZE")
+    db_max_retry_attempts: int = Field(default=3, alias="DB_MAX_RETRY_ATTEMPTS")
+
     # Logging
     log_level: str = Field(default="INFO")
 
