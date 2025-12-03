@@ -50,7 +50,7 @@ class CoinbaseWebsocketClient:
             self._connection = websocket
 
             # Subscribe
-            subscribe_message = {"type": "subscribe", "channels": [settings.channel], "product_ids": [settings.product_id]}
+            subscribe_message = {"type": "subscribe", "channel": settings.channel, "product_ids": [settings.product_id]}
 
             await websocket.send(json.dumps(subscribe_message))
             logger.info("Subscribed to %s for %s", settings.channel, settings.product_id)

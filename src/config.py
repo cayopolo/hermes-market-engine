@@ -15,8 +15,12 @@ class Settings(BaseSettings):
     product_id: str = Field(default="XRP-USD")
     channel: str = Field(default="level2")
 
+    # Redis Pub/Sub (Hot Path)
+    redis_url: str = "redis://localhost:6379"
+    redis_channel: str = "hermes:market_data"
+
     # Logging
-    Log_level: str = Field(default="INFO")
+    log_level: str = Field(default="INFO")
 
     model_config = SettingsConfigDict(env_file=".env")
 
