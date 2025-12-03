@@ -1,3 +1,7 @@
+-- ##########################################################
+-- # THIS FILE HAS NOW BEEN DEPRECATED. KEEPING FOR REFERENCE
+-- ##########################################################
+
 -- Table: bid snapshots
 -- id represents position in the order book (1 = best bid)
 CREATE TABLE bid_orderbook_snapshot (

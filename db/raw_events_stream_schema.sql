@@ -1,3 +1,7 @@
+-- ##########################################################
+-- # THIS FILE HAS NOW BEEN DEPRECATED. KEEPING FOR REFERENCE
+-- ##########################################################
+
 -- Table: raw_events_stream
 -- Stores the raw, unprocessed WebSocket messages from the exchange.
 

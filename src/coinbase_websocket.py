@@ -1,3 +1,7 @@
+##########################################################
+# THIS FILE HAS NOW BEEN DEPRECATED. KEEPING FOR REFERENCE
+##########################################################
+
 import asyncio
 import json
 import uuid
