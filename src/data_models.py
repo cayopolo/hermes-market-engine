@@ -39,3 +39,12 @@ class HotPathPacket(BaseModel):
     payload: CoinbaseMessage
 
 
+class Analytics(BaseModel):
+    """Computed analytics snapshot"""
+
+    product_id: str
+    timestamp: datetime
+    best_bid: Decimal | None
+    best_ask: Decimal | None
+    spread: Decimal | None
+    midprice: Decimal | None
