@@ -200,7 +200,7 @@ async def websocket_listener() -> None:
                     break  # Will exit the 'async with websockets.connect' block and restart/crash the outer function
 
                 # Insert event into database
-                # await insert_raw_event(conn, connection_id, json_response)
+                await insert_raw_event(conn, connection_id, json_response)
 
                 message_count += 1
                 if message_count % 100 == 0:
