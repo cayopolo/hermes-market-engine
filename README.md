@@ -10,6 +10,24 @@ Hermes Market Engine is a learning-driven project with a goal to build a small b
 - Using PostgreSQL as the main storage layer
 - Potentially experimenting with JIT-compiled logic (Numba) for high-speed orderbook and analytics calculations
 
+## Quick Start
+
+### Setup Database
+
+```bash
+docker-compose up -d
+```
+
+For detailed setup instructions, see [DATABASE_SETUP.md](docs/DATABASE_SETUP.md)
+
+### Run Services
+
+```bash
+bash scripts/main.sh
+```
+
+---
+
 ## Project Goals
 
 Gain hands-on experience with:
