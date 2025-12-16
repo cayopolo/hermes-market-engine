@@ -148,7 +148,7 @@ self.db_writer: BatchedDBWriter | None = None
 1. `initialise()`:
    - Connect to Redis
    - Create PostgreSQL connection pool
-   - Initialize BatchedDBWriter
+   - Initialise BatchedDBWriter
    - Create CoinbaseWebsocketClient
 
 2. `start()`:
@@ -258,7 +258,7 @@ class BatchedDBWriter:
 5. **`_transform_message(message, received_at)`**:
    - Extract `event_type` from first event (snapshot/update)
    - Extract `product_id` from first event
-   - Serialize full message to JSONB using orjson
+   - Serialise full message to JSONB using orjson
    - Convert Unix timestamp to timestamptz
 
 **SQL Insert Statement**:

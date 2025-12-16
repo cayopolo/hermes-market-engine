@@ -60,7 +60,7 @@ class AnalyticsEngine:
 
     async def _listen(self) -> None:
         """Listen for messages and process"""
-        assert self.orderbook is not None, "OrderBook must be initialized before listening"
+        assert self.orderbook is not None, "OrderBook must be initialised before listening"
         logger.info("Analytics Engine listening for messages...")
         if self.pubsub:
             try:

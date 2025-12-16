@@ -50,7 +50,7 @@ class DataCollectionService:
             logger.error("Failed to create database pool: %s", e)
             raise RuntimeError("Database initialization failed") from e
 
-        # Initialize batch writer
+        # Initialise batch writer
         self.db_writer = BatchedDBWriter(
             pool=self.db_pool,
             connection_id=str(self.connection_id),
