@@ -1,7 +1,7 @@
 # Hermes Market Engine - Current Architecture
 
-**Last Updated**: 2025-12-03
-**Status**: Cold Path Implementation Complete
+**Last Updated**: 2025-12-16
+**Status**: API Layer Complete
 
 ---
 
@@ -10,9 +10,10 @@
 2. [Architecture](#2-architecture)
 3. [Data Collection Service](#3-data-collection-service)
 4. [Analytics Service](#4-analytics-service)
-5. [Database Schema](#5-database-schema)
-6. [Configuration](#6-configuration)
-7. [Deployment](#7-deployment)
+5. [API Layer](#5-api-layer)
+6. [Database Schema](#6-database-schema)
+7. [Configuration](#7-configuration)
+8. [Deployment](#8-deployment)
 
 ---
 
@@ -30,6 +31,7 @@ Hermes Market Engine is a high-performance market data platform that ingests liv
 - **asyncpg** for database connection pooling
 - **websockets** for Coinbase WebSocket client
 - **Pydantic** for data validation and configuration
+- **FastAPI** for HTTP API exposure
 
 ---
 
@@ -64,7 +66,7 @@ graph TB
     subgraph Storage["Storage Layer"]
         Redis["Redis Server<br/>Channel: hermes:market_data<br/>• In-memory<br/>• Real-time stream"]
 
-        Postgres["PostgreSQL Database<br/>Table: raw_events_stream<br/>• Full message as JSONB<br/>• Indexed by time<br/>• Idempotent inserts"]
+        Postgres["PostgreSQL Database<br/>Tables: raw_events_stream<br/>orderbook_snapshot<br/>• Full message as JSONB<br/>• Indexed by time<br/>• Idempotent inserts"]
     end
 
     subgraph Analytics["Analytics Service"]
@@ -75,21 +77,34 @@ graph TB
         Subscriber --> OrderbookMgr
     end
 
+    subgraph API["FastAPI HTTP Layer"]
+        AnalyticsAPI["GET /analytics/*<br/>• /current<br/>• /spread<br/>• /midprice"]
+        OrderbookAPI["GET /orderbook/*<br/>• /snapshot<br/>• /bids<br/>• /asks"]
+    end
+
+    Client["HTTP Client<br/>Browser/CLI"]
+
     WS --> WSClient
     Publisher -->|"Publish"| Redis
     BatchWriter -->|"asyncpg Pool (2-10)"| Postgres
     Redis -->|"Subscribe"| Subscriber
     OrderbookMgr -.->|"Periodic snapshots"| Postgres
+    Client -->|"HTTP Requests"| AnalyticsAPI
+    Client -->|"HTTP Requests"| OrderbookAPI
+    AnalyticsAPI -.->|"Query live state"| OrderbookMgr
+    OrderbookAPI -.->|"Query live state"| OrderbookMgr
 
     classDef hotPath fill:#ff6b6b,stroke:#c92a2a,stroke-width:2px,color:#fff
     classDef coldPath fill:#4dabf7,stroke:#1971c2,stroke-width:2px,color:#fff
     classDef storage fill:#51cf66,stroke:#2f9e44,stroke-width:2px,color:#fff
     classDef external fill:#ffd43b,stroke:#fab005,stroke-width:2px,color:#000
+    classDef api fill:#9775fa,stroke:#7950f2,stroke-width:2px,color:#fff
 
     class Publisher hotPath
     class BatchWriter coldPath
     class Redis,Postgres storage
-    class WS,WSClient external
+    class WS,WSClient,Client external
+    class AnalyticsAPI,OrderbookAPI api
 ```
 
 ### 2.2 Design Principles
@@ -97,9 +112,9 @@ graph TB
 #### Separation of Concerns
 - **Data Collection**: Isolated from business logic, only concerned with ingestion
 - **Analytics**: Independent of data source, consumes standardized messages
-- **Storage**: Dual-path optimized for different access patterns
+- **Storage**: Dual-path optimised for different access patterns
 
-#### Performance Optimizations
+#### Performance Optimisations
 - **Hot Path**: Zero-copy Redis pub/sub for <1ms latency to analytics
 - **Cold Path**: Batched writes reduce database load by 1000x
 - **Thread Safety**: asyncio.Lock with minimal hold time
@@ -133,7 +148,7 @@ graph TB
 #### DataCollectionService
 Main orchestrator for the data collection pipeline.
 
-**Initialization** (`__init__`):
+**Initialisation** (`__init__`):
 ```python
 self.connection_id = uuid4()  # Unique ID for this service instance
 self.sequence_tracker = -1     # Track Coinbase sequence numbers
@@ -247,7 +262,7 @@ class BatchedDBWriter:
 3. **`_flush()`**:
    - Atomically extract up to `batch_size` messages from buffer
    - Call `_execute_batch_with_retry()` outside the lock
-   - Minimizes lock hold time to prevent blocking enqueue operations
+   - Minimises lock hold time to prevent blocking enqueue operations
 
 4. **`_execute_batch_with_retry(batch)`**:
    - Exponential backoff: wait_time = 2^attempt seconds
@@ -274,7 +289,7 @@ ON CONFLICT (connection_id, product_id, sequence_num) DO NOTHING
 
 #### Normal Operation
 ```
-[INFO] Initializing Data Collection Service (ID: a1b2c3d4-...)
+[INFO] Initialising Data Collection Service (ID: a1b2c3d4-...)
 [INFO] PostgreSQL connection pool created
 [INFO] BatchedDBWriter started (flush interval: 10.0s)
 [INFO] Data Collection Service started
@@ -321,7 +336,7 @@ ON CONFLICT (connection_id, product_id, sequence_num) DO NOTHING
 #### OrderbookManager
 - **Purpose**: Maintain in-memory orderbook state
 - **Responsibilities**:
-  - Process snapshot events (full orderbook initialization)
+  - Process snapshot events (full orderbook initialisation)
   - Process update events (incremental changes)
   - Compute real-time analytics:
     - Best bid/ask
@@ -333,7 +348,99 @@ ON CONFLICT (connection_id, product_id, sequence_num) DO NOTHING
 
 ---
 
-## 5. Database Schema
+## 5. API Layer
+
+**Location**: `src/api/`, `src/main.py`
+
+### 5.1 Overview
+
+The FastAPI layer provides HTTP endpoints for querying real-time orderbook state and analytics. Clients can retrieve current market data without needing direct access to Redis or the database.
+
+**Technologies**:
+- **FastAPI**: Modern async web framework
+- **Pydantic**: Request/response validation
+- **Dependency Injection**: Clean, testable endpoint handlers
+
+### 5.2 API Endpoints
+
+#### Analytics Router (`/analytics`)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `GET /analytics/current` | GET | Full analytics snapshot (spread, midprice, imbalance, VWAP) |
+| `GET /analytics/spread` | GET | Current bid-ask spread |
+| `GET /analytics/midprice` | GET | Current mid-price (average of best bid/ask) |
+
+**Response Example** (`/analytics/current`):
+```json
+{
+  "product_id": "ETH-EUR",
+  "timestamp": "2025-12-16T13:02:51.123456Z",
+  "best_bid": "2450.50",
+  "best_ask": "2450.75",
+  "spread": "0.25",
+  "midprice": "2450.625",
+  "imbalance": 0.45,
+  "vwap": "2450.60"
+}
+```
+
+#### Orderbook Router (`/orderbook`)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `GET /orderbook/snapshot?depth=10` | GET | Orderbook snapshot with top N levels |
+| `GET /orderbook/bids?depth=10` | GET | Best bid levels |
+| `GET /orderbook/asks?depth=10` | GET | Best ask levels |
+
+**Parameters**:
+- `depth` (query, optional, default=10, range 1-100): Number of price levels to return
+
+**Response Example** (`/orderbook/snapshot`):
+```json
+{
+  "product_id": "ETH-EUR",
+  "timestamp": "2025-12-16T13:02:51.123456Z",
+  "bids": [
+    { "price": "2450.50", "size": "5.23" },
+    { "price": "2450.25", "size": "12.15" }
+  ],
+  "asks": [
+    { "price": "2450.75", "size": "8.50" },
+    { "price": "2451.00", "size": "3.20" }
+  ],
+  "best_bid": "2450.50",
+  "best_ask": "2450.75",
+  "spread": "0.25",
+  "midprice": "2450.625"
+}
+```
+
+### 5.3 Error Handling
+
+All endpoints handle the following scenarios:
+
+- **503 Service Unavailable**: Analytics engine not initialised or orderbook snapshot not yet received
+  - Returned during startup before first snapshot arrives
+  - Indicates the system is warming up
+
+**Response Example**:
+```json
+{
+  "detail": "Orderbook snapshot not yet received"
+}
+```
+
+### 5.4 Integration with Analytics Service
+
+The API layer queries the in-memory `OrderbookManager` directly, providing:
+- **<1ms latency**: No database round-trip for current state
+- **Real-time data**: Always reflects the latest snapshot
+- **Reduced load**: Offloads analytics queries from database
+
+---
+
+## 6. Database Schema
 
 **Location**: `db/schema.sql`
 
@@ -427,11 +534,11 @@ CREATE INDEX idx_orderbook_snapshot_time
 
 ---
 
-## 6. Configuration
+## 7. Configuration
 
 **Location**: `src/config.py`
 
-### 6.1 Settings Class (Pydantic)
+### 7.1 Settings Class (Pydantic)
 
 ```python
 class Settings(BaseSettings):
@@ -484,9 +591,9 @@ DB_MAX_RETRY_ATTEMPTS=3          # Retry up to 3 times
 
 ---
 
-## 7. Deployment
+## 8. Deployment
 
-### 7.1 Service Startup Script
+### 8.1 Service Startup Script
 
 **Location**: `scripts/main.sh`
 
@@ -569,9 +676,9 @@ redis-cli
 
 ---
 
-## 8. Performance Characteristics
+## 9. Performance Characteristics
 
-### 8.1 Hot Path (Redis)
+### 9.1 Hot Path (Redis)
 - **Latency**: <1ms from WebSocket receive to Redis publish
 - **Throughput**: 1000+ messages/second
 - **Reliability**: Best-effort (no persistence)
@@ -590,19 +697,20 @@ redis-cli
 
 ---
 
-## 9. Future Enhancements
+## 10. Future Enhancements
 
-### 9.1 Planned Features
-- [ ] FastAPI REST endpoints for historical queries
-- [ ] WebSocket streaming API for live orderbook
+### 10.1 Planned Features
+- [x] FastAPI REST endpoints for analytics and orderbook
+- [ ] Historical queries against orderbook_snapshot table
+- [x] WebSocket streaming API for live orderbook updates
 - [ ] Dashboard UI (React/Next.js)
 - [ ] Support additional Coinbase channels (trades, ticker)
 - [ ] Multi-product support (ETH-EUR, BTC-USD, etc.)
 
-### 9.2 Performance Optimizations
+### 9.2 Performance Optimisations
 - [ ] Numba JIT compilation for analytics calculations
 - [ ] Shared memory for ultra-low-latency snapshots
-- [ ] TimescaleDB for time-series optimization
+- [ ] TimescaleDB for time-series optimisation
 - [ ] Partitioning for raw_events_stream table
 
 ### 9.3 Reliability Improvements
@@ -613,24 +721,30 @@ redis-cli
 
 ---
 
-## 10. Key Design Decisions
+## 11. Key Design Decisions
 
-### 10.1 Why Dual-Path Architecture?
+### 11.1 Why Dual-Path Architecture?
 - **Hot Path**: Analytics need real-time data (<1ms latency)
 - **Cold Path**: Historical analysis needs complete data (100% durability)
 - **Trade-off**: Accept occasional data loss in Hot Path for speed, rely on Cold Path for completeness
 
-### 10.2 Why Time-Based Flushing Only?
+### 11.2 Why Time-Based Flushing Only?
 - **Simplicity**: Single trigger (time) easier to reason about
 - **Predictable Load**: Database writes happen at regular intervals
 - **Graceful Degradation**: If messages arrive faster than flush rate, buffer grows (up to 2x batch_size)
 
-### 10.3 Why Drop Batches After Max Retries?
+### 11.3 Why Drop Batches After Max Retries?
 - **System Stability**: Prefer losing data over crashing the service
 - **Alerting**: Dropped batches are logged as errors for monitoring
 - **Recovery**: Service continues running, new batches may succeed
 
-### 10.4 Why Store Full JSONB?
+### 11.4 Why Store Full JSONB?
 - **Replay Capability**: Can reconstruct orderbook from raw messages
 - **Schema Evolution**: Adding new fields doesn't break historical data
 - **Debugging**: Full message context available for troubleshooting
+
+### 11.5 Why Query Analytics from Memory Instead of Database?
+- **Latency**: <1ms vs 10-100ms from database
+- **Consistency**: Always reflects latest processed snapshot
+- **Load**: API queries don't hit the database
+- **Trade-off**: Only provides current state, not historical snapshots

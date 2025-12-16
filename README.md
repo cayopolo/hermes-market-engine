@@ -12,7 +12,7 @@ Hermes Market Engine is a learning-driven project with a goal to build a small b
 
 ## Quick Start
 
-### Setup Database
+### 1. Setup Database
 
 ```bash
 docker-compose up -d
@@ -20,11 +20,50 @@ docker-compose up -d
 
 For detailed setup instructions, see [DATABASE_SETUP.md](docs/DATABASE_SETUP.md)
 
-### Run Services
+### 2. Run Services
 
 ```bash
 bash scripts/main.sh
 ```
+
+This starts:
+- **Data Collection Service**: Connects to Coinbase WebSocket, ingests level2 orderbook updates
+- **Analytics Service**: Processes messages via Redis, maintains in-memory orderbook
+- **FastAPI Server**: HTTP API listening on http://localhost:8000
+
+### 3. Access the API
+
+**Interactive Documentation**:
+- Swagger UI: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
+
+**Query Current Analytics**:
+```bash
+curl http://localhost:8000/analytics/current
+```
+
+**Get Orderbook Snapshot**:
+```bash
+curl http://localhost:8000/orderbook/snapshot?depth=5
+```
+
+### API Endpoints
+
+#### Analytics Endpoints (`/analytics`)
+| Endpoint | Description |
+|----------|-------------|
+| `GET /analytics/current` | Full analytics snapshot (spread, midprice, imbalance, VWAP) |
+| `GET /analytics/spread` | Current bid-ask spread |
+| `GET /analytics/midprice` | Current mid-price |
+
+#### Orderbook Endpoints (`/orderbook`)
+| Endpoint | Description |
+|----------|-------------|
+| `GET /orderbook/snapshot?depth=N` | Current orderbook with top N levels (default: 10) |
+| `GET /orderbook/bids?depth=N` | Best bid levels |
+| `GET /orderbook/asks?depth=N` | Best ask levels |
+
+All endpoints provide **real-time data** with **<1ms latency** by querying the in-memory analytics engine.
 
 ---
 
@@ -32,8 +71,8 @@ bash scripts/main.sh
 
 Gain hands-on experience with:
 
-- FastAPI
-- PostgreSQL schema design
-- WebSockets & async IO
-- Orderbook data structures
-- Performance optimisation via JIT compilation
+- FastAPI & async HTTP servers
+- PostgreSQL schema design & connection pooling
+- WebSockets & async IO with exponential backoff
+- Real-time orderbook data structures
+- Potentially: JIT-compiled logic (Numba) for high-speed calculations
