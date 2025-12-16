@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     # Database
     db_user: str = Field(default="postgres", alias="DB_USER")
     db_name: str = Field(default="hermes_market_engine", alias="DB_NAME")
-    db_password: str = Field(default="", alias="DB_PASSWORD")
+    db_password: str = Field(default="postgres", alias="DB_PASSWORD")
     db_host: str = Field(default="localhost")
     db_port: int = Field(default=5432)
 
