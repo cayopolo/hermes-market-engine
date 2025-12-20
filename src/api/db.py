@@ -45,11 +45,11 @@ class DatabaseService:
             raise RuntimeError("Database not initialised")
 
         query = """
-        SELECT id, timestamp, bids_snapshot, asks_snapshot, analytics
+        SELECT id, exchange_timestamp, bids_snapshot, asks_snapshot, analytics
         FROM order_book_snapshot
         WHERE product_id = $1
-            AND timestamp BETWEEN $2 AND $3
-        ORDER BY timestamp DESC
+            AND exchange_timestamp BETWEEN $2 AND $3
+        ORDER BY exchange_timestamp DESC
         LIMIT $4
         """
 
@@ -58,7 +58,7 @@ class DatabaseService:
         return [dict(row) for row in rows]
 
     async def get_raw_events(
-        self, product_id: str, start_time: datetime, end_time: datetime, event_type: str | None = None, limit: int = 1000
+        self, product_id: str, start_time: datetime, end_time: datetime, event_type: str | None = None, limit: int = 100
     ) -> list[dict]:
         """
         Query raw market events.
@@ -77,21 +77,21 @@ class DatabaseService:
             raise RuntimeError("Database not initialised")
 
         base_query = """
-        SELECT id, timestamp, event_data
+        SELECT id, sequence_num, raw_message
         FROM raw_events_stream
         WHERE product_id = $1
-            AND timestamp BETWEEN $2 AND $3
+            AND exchange_timestamp BETWEEN $2 AND $3
         """
 
         params = [product_id, start_time, end_time]
         param_idx = 4
 
         if event_type:
-            base_query += f" AND event_data->>'type' = ${param_idx}"
+            base_query += f" AND event_type = ${param_idx}"
             params.append(event_type)
             param_idx += 1
 
-        base_query += f" ORDER BY timestamp DESC LIMIT ${param_idx}"
+        base_query += f" ORDER BY exchange_timestamp DESC LIMIT ${param_idx}"
         params.append(limit)
 
         rows = await self.pool.fetch(base_query, *params)

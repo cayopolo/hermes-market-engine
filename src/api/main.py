@@ -8,6 +8,7 @@ from src.analytics.engine import AnalyticsEngine
 from src.api.analytics import router as analytics_router
 from src.api.db import db_service
 from src.api.dependencies import set_analytics_engine
+from src.api.history import router as history_router
 from src.api.orderbook import router as orderbook_router
 
 logger = logging.getLogger(__name__)
@@ -49,6 +50,7 @@ app = FastAPI(
 # Register routers
 app.include_router(analytics_router)
 app.include_router(orderbook_router)
+app.include_router(history_router)
 
 
 @app.get("/")
