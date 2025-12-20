@@ -23,13 +23,15 @@ For detailed setup instructions, see [DATABASE_SETUP.md](docs/DATABASE_SETUP.md)
 ### 2. Run Services
 
 ```bash
-bash scripts/main.sh
+uv run hermes
 ```
 
 This starts:
 - **Data Collection Service**: Connects to Coinbase WebSocket, ingests level2 orderbook updates
 - **Analytics Service**: Processes messages via Redis, maintains in-memory orderbook
 - **FastAPI Server**: HTTP API listening on http://localhost:8000
+
+Optional: control logging level with `--log-level debug|info|warning|error`
 
 ### 3. Access the API
 
