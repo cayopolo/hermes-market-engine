@@ -6,6 +6,7 @@ from fastapi import FastAPI
 
 from src.api.analytics import router as analytics_router
 from src.api.db import db_service
+from src.api.health import router as health_router
 from src.api.history import router as history_router
 from src.api.orderbook import router as orderbook_router
 
@@ -40,6 +41,7 @@ app = FastAPI(
 app.include_router(analytics_router)
 app.include_router(orderbook_router)
 app.include_router(history_router)
+app.include_router(health_router)
 
 
 @app.get("/")

@@ -1,7 +1,19 @@
 from datetime import datetime
 from decimal import Decimal
+from enum import Enum
 
 from pydantic import BaseModel, Field
+
+
+class ServiceStatus(str, Enum):
+    """Service health status values"""
+
+    RUNNING = "running"
+    STOPPED = "stopped"
+    CONNECTED = "connected"
+    DISCONNECTED = "disconnected"
+    ERROR = "error"
+    UNINITIALISED = "uninitialised"
 
 
 class AnalyticsResponse(BaseModel):
@@ -111,3 +123,14 @@ class RawEvent(BaseModel):
     }
 
 
+class HealthResponse(BaseModel):
+    """Health check response"""
+
+    status: str
+    analytics: ServiceStatus
+    redis: ServiceStatus
+    postgres: ServiceStatus
+
+    model_config = {
+        "json_schema_extra": {"example": {"status": "healthy", "analytics": "running", "redis": "connected", "postgres": "connected"}}
+    }
