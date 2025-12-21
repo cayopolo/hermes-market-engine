@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     db_pool_max_size: int = Field(default=10, alias="DB_POOL_MAX_SIZE")
     db_max_retry_attempts: int = Field(default=3, alias="DB_MAX_RETRY_ATTEMPTS")
 
+    # API Server
+    api_host: str = Field(default="127.0.0.1")  # 127.0.0.1 for localhost only
+    api_port: int = Field(default=8000)
+
     # Logging
     log_level: str = Field(default="INFO")
 

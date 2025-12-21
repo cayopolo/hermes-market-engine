@@ -6,8 +6,11 @@ import signal
 from types import FrameType
 
 import click
+import uvicorn
 
 from src.analytics.engine import AnalyticsEngine
+from src.api.dependencies import set_analytics_engine
+from src.api.main import app
 from src.config import settings
 from src.data_collection.ingestor import DataCollectionService
 from src.logging_config import get_logger, setup_logging
@@ -29,8 +32,15 @@ def cli(log_level: str | None) -> None:
         collector_service = DataCollectionService()
         analytics_engine = AnalyticsEngine()
 
+        # API
+        set_analytics_engine(analytics_engine)
+
+        config = uvicorn.Config(app=app, host=settings.api_host, port=settings.api_port, log_level=settings.log_level.lower())
+        server = uvicorn.Server(config)
+
         collector_task: asyncio.Task | None = None
         analytics_task: asyncio.Task | None = None
+        api_task: asyncio.Task | None = None
         shutdown_event = asyncio.Event()
 
         def shutdown_handler(_sig: int, _frame: FrameType | None) -> None:
@@ -43,29 +53,38 @@ def cli(log_level: str | None) -> None:
 
             # Stop analytics
             analytics_engine.should_run = False
+
+            # Stop API server
+            server.should_exit = True
+
             if analytics_task and not analytics_task.done():
                 analytics_task.cancel()
             if collector_task and not collector_task.done():
                 collector_task.cancel()
+            if api_task and not api_task.done():
+                api_task.cancel()
 
         signal.signal(signal.SIGINT, shutdown_handler)
         signal.signal(signal.SIGTERM, shutdown_handler)
 
         try:
-            # Start both services concurrently
+            # Start all services concurrently
+            api_task = asyncio.create_task(server.serve(), name="api")
             collector_task = asyncio.create_task(collector_service.start(), name="collector")
             analytics_task = asyncio.create_task(analytics_engine.start(), name="analytics")
 
             logger.info("All services started successfully")
+            logger.info("FastAPI server running at http://%s:%s", settings.api_host, settings.api_port)
+            logger.info("API docs available at http://%s:%s/docs", settings.api_host, settings.api_port)
 
             # Wait for shutdown signal or any task to fail
             done, pending = await asyncio.wait(
-                [collector_task, analytics_task, asyncio.create_task(shutdown_event.wait())], return_when=asyncio.FIRST_COMPLETED
+                [api_task, collector_task, analytics_task, asyncio.create_task(shutdown_event.wait())], return_when=asyncio.FIRST_COMPLETED
             )
 
             # If a service task completed/failed, trigger shutdown
             for task in done:
-                if task.get_name() in ["collector", "analytics"] and not shutdown_event.is_set():
+                if task.get_name() in ["api", "collector", "analytics"] and not shutdown_event.is_set():
                     logger.error("Service %s stopped unexpectedly", task.get_name())
                     shutdown_event.set()
 

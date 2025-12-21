@@ -29,8 +29,7 @@ uv run hermes
 This starts:
 - **Data Collection Service**: Connects to Coinbase WebSocket, ingests level2 orderbook updates
 - **Analytics Service**: Processes messages via Redis, maintains in-memory orderbook
-- ~~**FastAPI Server**: HTTP API listening on http://localhost:8000~~
-  - ^^ It should do this but doesnt atm
+- **FastAPI Server**: HTTP API listening on http://localhost:8000
 
 Optional: control logging level with `--log-level debug|info|warning|error`
 
@@ -50,10 +49,6 @@ curl http://localhost:8000/analytics/current
 curl http://localhost:8000/orderbook/snapshot?depth=5
 ```
 
-> **_NOTE:_**: At the moment you must start the API service using `uv run fastapi dev ./src/api/main.py` then run hermes cli and you're good to go!
-> - ***TODO***: Resolve this so the order doesnt matter / start fastapi with start of data collection service
-
-
 ### API Endpoints
 
 #### Analytics Endpoints (`/analytics`)
@@ -69,6 +64,11 @@ curl http://localhost:8000/orderbook/snapshot?depth=5
 | `GET /orderbook/snapshot?depth=N` | Current orderbook with top N levels (default: 10) |
 | `GET /orderbook/bids?depth=N` | Best bid levels |
 | `GET /orderbook/asks?depth=N` | Best ask levels |
+
+#### History Endpoints (`/history`)
+| Endpoint | Description |
+|----------|-------------|
+| `GET /history/raw-events` | Query historical raw events from database by time range and product |
 
 All endpoints provide **real-time data** with **<1ms latency** by querying the in-memory analytics engine.
 

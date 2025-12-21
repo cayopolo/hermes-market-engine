@@ -4,10 +4,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from src.analytics.engine import AnalyticsEngine
 from src.api.analytics import router as analytics_router
 from src.api.db import db_service
-from src.api.dependencies import set_analytics_engine
 from src.api.history import router as history_router
 from src.api.orderbook import router as orderbook_router
 
@@ -19,26 +17,17 @@ logger = logging.getLogger(__name__)
 async def lifespan(_: FastAPI) -> AsyncGenerator:
     """Manage app lifecycle"""
     # Startup
-    logger.info("Starting up...")
+    logger.info("Starting up API...")
 
-    # Initialise analytics engine
-    engine = AnalyticsEngine()
-    set_analytics_engine(engine)
-
-    # Start analytics engine in background
-    import asyncio
-
-    engine_task = asyncio.create_task(engine.start())
-
-    # Initialise database
+    # Analytics engine is managed by CLI and injected via set_analytics_engine()
+    # Just initialise database
     await db_service.initialise()
 
     yield
 
     # Shutdown
-    logger.info("Shutting down...")
-    engine_task.cancel()
-    await engine.stop()
+    logger.info("Shutting down API...")
+    # Analytics engine is stopped by CLI
     await db_service.close()
 
 
