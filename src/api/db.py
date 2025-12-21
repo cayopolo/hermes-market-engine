@@ -3,6 +3,7 @@ from datetime import datetime
 
 import asyncpg
 
+from src.api.responses import RawEvent
 from src.config import settings
 
 logger = logging.getLogger(__name__)
@@ -59,7 +60,7 @@ class DatabaseService:
 
     async def get_raw_events(
         self, product_id: str, start_time: datetime, end_time: datetime, event_type: str | None = None, limit: int = 100
-    ) -> list[dict]:
+    ) -> list[RawEvent]:
         """
         Query raw market events.
 

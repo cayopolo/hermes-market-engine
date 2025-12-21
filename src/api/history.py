@@ -3,12 +3,14 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query
 
+from src.api.responses import RawEvent
+
 from .db import db_service
 
 router = APIRouter(prefix="/history", tags=["history"])
 
 
-@router.get("/raw-events", response_model=list[dict])
+@router.get("/raw-events", response_model=list[RawEvent])
 async def get_raw_event_history(
     product_id: Annotated[str, Query(example="ETH-EUR")],
     start_time: Annotated[datetime, Query(example="2023-01-01T00:00:00Z")],

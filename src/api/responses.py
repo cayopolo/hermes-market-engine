@@ -61,3 +61,53 @@ class OrderbookSnapshot(BaseModel):
             }
         }
     }
+
+
+class RawEvent(BaseModel):
+    """Raw market event from database"""
+
+    id: int
+    sequence_num: int
+    raw_message: dict
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "id": 12345,
+                "sequence_num": 2,
+                "raw_message": {
+                    "events": [
+                        {
+                            "type": "update",
+                            "updates": [
+                                {
+                                    "side": "bid",
+                                    "event_time": "2025-12-16T10:50:13.415877Z",
+                                    "price_level": "2509.24",
+                                    "new_quantity": "0.33892332",
+                                },
+                                {
+                                    "side": "offer",
+                                    "event_time": "2025-12-16T10:50:13.415877Z",
+                                    "price_level": "2509.75",
+                                    "new_quantity": "0.33885526",
+                                },
+                                {
+                                    "side": "offer",
+                                    "event_time": "2025-12-16T10:50:13.415877Z",
+                                    "price_level": "2523.74",
+                                    "new_quantity": "0",
+                                },
+                            ],
+                            "product_id": "ETH-EUR",
+                        }
+                    ],
+                    "channel": "l2_data",
+                    "timestamp": "2025-12-16T10:50:13.443296Z",
+                    "sequence_num": 2,
+                },
+            }
+        }
+    }
+
+
