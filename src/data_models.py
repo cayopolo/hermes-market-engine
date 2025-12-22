@@ -48,3 +48,4 @@ class Analytics(BaseModel):
     best_ask: Decimal | None
     spread: Decimal | None
     midprice: Decimal | None
+    imbalance: Decimal | None

@@ -25,6 +25,7 @@ class AnalyticsResponse(BaseModel):
     best_ask: Decimal | None
     spread: Decimal | None
     midprice: Decimal | None
+    imbalance: Decimal | None
 
     model_config = {
         "json_schema_extra": {
@@ -35,6 +36,7 @@ class AnalyticsResponse(BaseModel):
                 "best_ask": "2500.75",
                 "spread": "0.25",
                 "midprice": "2500.625",
+                "imbalance": "0.1234",
             }
         }
     }

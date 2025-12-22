@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -41,3 +42,18 @@ async def get_midprice(engine: Annotated[AnalyticsEngine, Depends(get_analytics_
 
     analytics = engine.orderbook.get_analytics()
     return {"product_id": analytics.product_id, "timestamp": analytics.timestamp, "midprice": analytics.midprice}
+
+
+@router.get("/imbalance", response_model=dict)
+async def get_imbalance(engine: Annotated[AnalyticsEngine, Depends(get_analytics_engine)]) -> dict:
+    """Get current order book imbalance.
+
+    Imbalance = (sum of bid quantities - sum of ask quantities) / (sum of bid quantities + sum of ask quantities)
+
+    Returns a value between -1 and 1, where positive indicates more bid volume.
+    """
+    if engine.orderbook is None or not engine.orderbook.initialised:
+        raise HTTPException(status_code=503, detail="Not ready")
+
+    imbalance = engine.orderbook.imbalance()
+    return {"product_id": engine.orderbook.product_id, "timestamp": datetime.now(UTC), "imbalance": imbalance}

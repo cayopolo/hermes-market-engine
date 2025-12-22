@@ -90,11 +90,32 @@ class OrderBook:
 
         spread = None
         midprice = None
+        imbalance = None
 
         if best_bid and best_ask:
             spread = best_ask - best_bid
             midprice = (best_bid + best_ask) / Decimal("2")
+            imbalance = self.imbalance()
 
         return Analytics(
-            product_id=self.product_id, timestamp=datetime.now(UTC), best_bid=best_bid, best_ask=best_ask, spread=spread, midprice=midprice
+            product_id=self.product_id,
+            timestamp=datetime.now(UTC),
+            best_bid=best_bid,
+            best_ask=best_ask,
+            spread=spread,
+            midprice=midprice,
+            imbalance=imbalance,
         )
+
+    def imbalance(self) -> Decimal:
+        """Calculate static order book imbalance
+
+        Imbalance = (sum of bid quantities - sum of ask quantities) / (sum of bid quantities + sum of ask quantities)
+
+        Returns:
+            Decimal: Imbalance value between -1 and 1, where positive indicates more bid volume
+        """
+        bids_sum = sum(self.bids.values())
+        asks_sum = sum(self.asks.values())
+
+        return Decimal((bids_sum - asks_sum) / (bids_sum + asks_sum) if (bids_sum + asks_sum) > 0 else 0.0)
