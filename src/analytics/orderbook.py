@@ -82,35 +82,48 @@ class OrderBook:
             else:
                 book[price] = qty
 
+    @property
+    def best_bid(self) -> float | None:
+        """Best (highest) bid price"""
+        return self.bids.keys()[0] if self.bids else None
+
+    @property
+    def best_ask(self) -> float | None:
+        """Best (lowest) ask price"""
+        return self.asks.keys()[0] if self.asks else None
+
     def get_analytics(self) -> Analytics:
         """Calculate current analytics"""
-        best_bid = self.bids.keys()[0] if self.bids else None
-        best_ask = self.asks.keys()[0] if self.asks else None
+        midprice = self.midprice()
+        spread = self.spread()
 
-        spread = None
-        midprice = None
-        imbalance = None
-        vamp = None
-        vamp_n = None
-
-        if best_bid and best_ask:
-            spread = best_ask - best_bid
-            midprice = (best_bid + best_ask) / 2.0
-            imbalance = self.imbalance()
-            vamp = self.volume_adjusted_midprice()
-            vamp_n = self.volume_adjusted_midprice_n()
+        imbalance = self.imbalance()
+        vamp = self.volume_adjusted_midprice()
+        vamp_n = self.volume_adjusted_midprice_n()
 
         return Analytics(
             product_id=self.product_id,
             timestamp=datetime.now(UTC),
-            best_bid=best_bid,
-            best_ask=best_ask,
+            best_bid=self.best_bid,
+            best_ask=self.best_ask,
             spread=spread,
             midprice=midprice,
             imbalance=imbalance,
             volume_adjusted_midprice=vamp,
             volume_adjusted_midprice_n=vamp_n,
         )
+
+    def midprice(self) -> float | None:
+        """Calculate current midprice (average of best bid and ask)"""
+        if self.best_bid is None or self.best_ask is None:
+            return None
+        return (self.best_bid + self.best_ask) / 2.0
+
+    def spread(self) -> float | None:
+        """Calculate current bid-ask spread"""
+        if self.best_bid is None or self.best_ask is None:
+            return None
+        return self.best_ask - self.best_bid
 
     def imbalance(self) -> float:
         """Calculate static order book imbalance
@@ -134,21 +147,18 @@ class OrderBook:
         Returns:
             float: Volume-adjusted midprice
         """
-        if not self.bids or not self.asks:
+        if self.best_bid is None or self.best_ask is None:
             return None
 
-        best_bid_price = self.bids.keys()[0]
-        best_ask_price = self.asks.keys()[0]
-
-        best_bid_qty = self.bids[self.bids.keys()[0]]
-        best_ask_qty = self.asks[self.asks.keys()[0]]
+        best_bid_qty = self.bids[self.best_bid]
+        best_ask_qty = self.asks[self.best_ask]
 
         total_qty = best_bid_qty + best_ask_qty
 
         if total_qty == 0:
             return None
 
-        return (best_bid_price * best_ask_qty + best_ask_price * best_bid_qty) / total_qty
+        return (self.best_bid * best_ask_qty + self.best_ask * best_bid_qty) / total_qty
 
     def volume_adjusted_midprice_n(self, depth_percent: float = 1.0) -> float | None:
         """Calculate volume-adjusted midprice with n% market depth
@@ -162,12 +172,9 @@ class OrderBook:
         Returns:
             float: Volume-adjusted midprice within n% depth
         """
-        if not self.bids or not self.asks:
+        midprice = self.midprice()
+        if midprice is None:
             return None
-
-        best_bid_price = self.bids.keys()[0]
-        best_ask_price = self.asks.keys()[0]
-        midprice = (best_bid_price + best_ask_price) / 2.0
 
         # Calculate depth bounds
         depth_factor = depth_percent / 100.0
@@ -194,5 +201,4 @@ class OrderBook:
         if total_qty == 0:
             return None
 
-        vamp_n = (best_bid_price * ask_qty_n + best_ask_price * bid_qty_n) / total_qty
-        return vamp_n
+        return (self.best_bid * ask_qty_n + self.best_ask * bid_qty_n) / total_qty

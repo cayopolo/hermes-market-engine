@@ -24,24 +24,24 @@ async def get_current_analytics(engine: Annotated[AnalyticsEngine, Depends(get_a
     return AnalyticsResponse(**analytics.model_dump())
 
 
-@router.get("/spread", response_model=dict)
-async def get_spread(engine: Annotated[AnalyticsEngine, Depends(get_analytics_engine)]) -> dict:
-    """Get current bid-ask spread."""
-    if engine.orderbook is None or not engine.orderbook.initialised:
-        raise HTTPException(status_code=503, detail="Not ready")
-
-    analytics = engine.orderbook.get_analytics()
-    return {"product_id": analytics.product_id, "timestamp": analytics.timestamp, "spread": analytics.spread}
-
-
 @router.get("/midprice", response_model=dict)
 async def get_midprice(engine: Annotated[AnalyticsEngine, Depends(get_analytics_engine)]) -> dict:
     """Get current mid-price (average of best bid and ask)."""
     if engine.orderbook is None or not engine.orderbook.initialised:
         raise HTTPException(status_code=503, detail="Not ready")
 
-    analytics = engine.orderbook.get_analytics()
-    return {"product_id": analytics.product_id, "timestamp": analytics.timestamp, "midprice": analytics.midprice}
+    midprice = engine.orderbook.midprice()
+    return {"product_id": engine.orderbook.product_id, "timestamp": datetime.now(UTC), "midprice": midprice}
+
+
+@router.get("/spread", response_model=dict)
+async def get_spread(engine: Annotated[AnalyticsEngine, Depends(get_analytics_engine)]) -> dict:
+    """Get current bid-ask spread."""
+    if engine.orderbook is None or not engine.orderbook.initialised:
+        raise HTTPException(status_code=503, detail="Not ready")
+
+    spread = engine.orderbook.spread()
+    return {"product_id": engine.orderbook.product_id, "timestamp": datetime.now(UTC), "spread": spread}
 
 
 @router.get("/imbalance", response_model=dict)
