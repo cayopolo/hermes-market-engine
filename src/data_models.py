@@ -49,3 +49,5 @@ class Analytics(BaseModel):
     spread: Decimal | None
     midprice: Decimal | None
     imbalance: Decimal | None
+    volume_adjusted_midprice: float | None
+    volume_adjusted_midprice_n: float | None

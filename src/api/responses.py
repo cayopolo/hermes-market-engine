@@ -26,6 +26,8 @@ class AnalyticsResponse(BaseModel):
     spread: Decimal | None
     midprice: Decimal | None
     imbalance: Decimal | None
+    volume_adjusted_midprice: float | None
+    volume_adjusted_midprice_n: float | None
 
     model_config = {
         "json_schema_extra": {
@@ -37,6 +39,8 @@ class AnalyticsResponse(BaseModel):
                 "spread": "0.25",
                 "midprice": "2500.625",
                 "imbalance": "0.1234",
+                "volume_adjusted_midprice": "2500.60",
+                "volume_adjusted_midprice_n": "2500.58",
             }
         }
     }

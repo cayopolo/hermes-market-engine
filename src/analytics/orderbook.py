@@ -91,11 +91,15 @@ class OrderBook:
         spread = None
         midprice = None
         imbalance = None
+        vamp = None
+        vamp_n = None
 
         if best_bid and best_ask:
             spread = best_ask - best_bid
             midprice = (best_bid + best_ask) / Decimal("2")
             imbalance = self.imbalance()
+            vamp = self.volume_adjusted_midprice()
+            vamp_n = self.volume_adjusted_midprice_n()
 
         return Analytics(
             product_id=self.product_id,
@@ -105,6 +109,8 @@ class OrderBook:
             spread=spread,
             midprice=midprice,
             imbalance=imbalance,
+            volume_adjusted_midprice=vamp,
+            volume_adjusted_midprice_n=vamp_n,
         )
 
     def imbalance(self) -> Decimal:
@@ -119,3 +125,75 @@ class OrderBook:
         asks_sum = sum(self.asks.values())
 
         return Decimal((bids_sum - asks_sum) / (bids_sum + asks_sum) if (bids_sum + asks_sum) > 0 else 0.0)
+
+    def volume_adjusted_midprice(self) -> float | None:
+        """Calculate volume-adjusted midprice
+
+        Volume-adjusted midprice = (p_best_bid X Q_best_ask + p_best_ask X Q_best_bid) / (Q_best_bid + Q_best_ask)
+
+        Note: price and quantity are cross-multiplied between bid and ask sides.
+        Returns:
+            float: Volume-adjusted midprice
+        """
+        if not self.bids or not self.asks:
+            return None
+
+        best_bid_price = self.bids.keys()[0]
+        best_ask_price = self.asks.keys()[0]
+
+        best_bid_qty = self.bids[self.bids.keys()[0]]
+        best_ask_qty = self.asks[self.asks.keys()[0]]
+
+        total_qty = best_bid_qty + best_ask_qty
+
+        if total_qty == 0:
+            return None
+
+        return (best_bid_price * best_ask_qty + best_ask_price * best_bid_qty) / total_qty
+
+    def volume_adjusted_midprice_n(self, depth_percent: float = 1.0) -> float | None:
+        """Calculate volume-adjusted midprice with n% market depth
+
+        Aggregates quantities within n% of the midprice on each side, then applies VAMP formula.
+        For 1% market depth: bid side from mid x 0.99 to mid, ask side from mid to mid x 1.01
+
+        Args:
+            depth_percent: Percentage depth (default 1.0 for 1% market depth)
+
+        Returns:
+            float: Volume-adjusted midprice within n% depth
+        """
+        if not self.bids or not self.asks:
+            return None
+
+        best_bid_price = self.bids.keys()[0]
+        best_ask_price = self.asks.keys()[0]
+        midprice = (best_bid_price + best_ask_price) / 2.0
+
+        # Calculate depth bounds
+        depth_factor = depth_percent / 100.0
+        bid_lower_bound = midprice * (1.0 - depth_factor)
+        ask_upper_bound = midprice * (1.0 + depth_factor)
+
+        # Aggregate quantities within depth on each side
+        bid_qty_n = 0.0
+        for price, qty in self.bids.items():
+            if price >= bid_lower_bound:
+                bid_qty_n += qty
+            else:
+                break  # bids are sorted highest to lowest, so stop when below bound
+
+        ask_qty_n = 0.0
+        for price, qty in self.asks.items():
+            if price <= ask_upper_bound:
+                ask_qty_n += qty
+            else:
+                break  # asks are sorted lowest to highest, so stop when above bound
+
+        total_qty = bid_qty_n + ask_qty_n
+
+        if total_qty == 0:
+            return None
+
+        vamp_n = (best_bid_price * ask_qty_n + best_ask_price * bid_qty_n) / total_qty
+        return vamp_n
