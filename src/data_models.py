@@ -1,5 +1,4 @@
 from datetime import datetime
-from decimal import Decimal
 from typing import Literal
 
 from pydantic import BaseModel
@@ -10,8 +9,8 @@ class CoinbaseUpdate(BaseModel):
 
     side: Literal["bid", "offer"]
     event_time: datetime
-    price_level: Decimal
-    new_quantity: Decimal
+    price_level: float
+    new_quantity: float
 
 
 class CoinbaseEvent(BaseModel):
@@ -44,10 +43,10 @@ class Analytics(BaseModel):
 
     product_id: str
     timestamp: datetime
-    best_bid: Decimal | None
-    best_ask: Decimal | None
-    spread: Decimal | None
-    midprice: Decimal | None
-    imbalance: Decimal | None
+    best_bid: float | None
+    best_ask: float | None
+    spread: float | None
+    midprice: float | None
+    imbalance: float | None
     volume_adjusted_midprice: float | None
     volume_adjusted_midprice_n: float | None

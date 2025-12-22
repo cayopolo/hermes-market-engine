@@ -1,5 +1,4 @@
 from datetime import datetime
-from decimal import Decimal
 from enum import Enum
 
 from pydantic import BaseModel, Field
@@ -21,11 +20,11 @@ class AnalyticsResponse(BaseModel):
 
     product_id: str
     timestamp: datetime
-    best_bid: Decimal | None
-    best_ask: Decimal | None
-    spread: Decimal | None
-    midprice: Decimal | None
-    imbalance: Decimal | None
+    best_bid: float | None
+    best_ask: float | None
+    spread: float | None
+    midprice: float | None
+    imbalance: float | None
     volume_adjusted_midprice: float | None
     volume_adjusted_midprice_n: float | None
 
@@ -49,8 +48,8 @@ class AnalyticsResponse(BaseModel):
 class OrderbookLevelResponse(BaseModel):
     """Single level in orderbook (price, size)"""
 
-    price: Decimal
-    size: Decimal
+    price: float
+    size: float
 
 
 class OrderbookSnapshot(BaseModel):
@@ -60,10 +59,10 @@ class OrderbookSnapshot(BaseModel):
     timestamp: datetime
     bids: list[OrderbookLevelResponse] = Field(..., description="Sorted highest to lowest")
     asks: list[OrderbookLevelResponse] = Field(..., description="Sorted lowest to highest")
-    best_bid: Decimal | None
-    best_ask: Decimal | None
-    spread: Decimal | None
-    midprice: Decimal | None
+    best_bid: float | None
+    best_ask: float | None
+    spread: float | None
+    midprice: float | None
 
     model_config = {
         "json_schema_extra": {

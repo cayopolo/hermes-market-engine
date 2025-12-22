@@ -1,6 +1,5 @@
 import logging
 from datetime import UTC, datetime
-from decimal import Decimal
 from operator import neg
 
 from sortedcontainers import SortedDict
@@ -96,7 +95,7 @@ class OrderBook:
 
         if best_bid and best_ask:
             spread = best_ask - best_bid
-            midprice = (best_bid + best_ask) / Decimal("2")
+            midprice = (best_bid + best_ask) / 2.0
             imbalance = self.imbalance()
             vamp = self.volume_adjusted_midprice()
             vamp_n = self.volume_adjusted_midprice_n()
@@ -113,18 +112,18 @@ class OrderBook:
             volume_adjusted_midprice_n=vamp_n,
         )
 
-    def imbalance(self) -> Decimal:
+    def imbalance(self) -> float:
         """Calculate static order book imbalance
 
         Imbalance = (sum of bid quantities - sum of ask quantities) / (sum of bid quantities + sum of ask quantities)
 
         Returns:
-            Decimal: Imbalance value between -1 and 1, where positive indicates more bid volume
+            float: Imbalance value between -1 and 1, where positive indicates more bid volume
         """
         bids_sum = sum(self.bids.values())
         asks_sum = sum(self.asks.values())
 
-        return Decimal((bids_sum - asks_sum) / (bids_sum + asks_sum) if (bids_sum + asks_sum) > 0 else 0.0)
+        return (bids_sum - asks_sum) / (bids_sum + asks_sum) if (bids_sum + asks_sum) > 0 else 0.0
 
     def volume_adjusted_midprice(self) -> float | None:
         """Calculate volume-adjusted midprice
