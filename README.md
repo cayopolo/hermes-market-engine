@@ -74,12 +74,15 @@ All endpoints provide **real-time data** with **<1ms latency** by querying the i
 
 ---
 
-## Project Goals
+## Project Goals & Learning Outcomes
 
-Gain hands-on experience with:
+Gained hands-on experience with:
 
-- FastAPI & async HTTP servers
-- PostgreSQL schema design & connection pooling
-- WebSockets & async IO with exponential backoff
-- Real-time orderbook data structures
-- Potentially: JIT-compiled logic (Numba) for high-speed calculations
+- [x] FastAPI & async HTTP servers
+- [x] PostgreSQL schema design & connection pooling
+- [x] WebSockets & async IO with exponential backoff
+- [x] Real-time orderbook data structures
+- [x] JIT-compiled order book calculations (Numba) - **[Performance testing revealed JIT provided no benefit for streaming data](docs/JIT_PERFORMANCE_ANALYSIS.md)**
+  - Synthetic benchmarks showed 20-36% speedup
+  - Production testing revealed 81% **slowdown** due to data conversion overhead
+  - Original Python implementation is faster for real-time analytics (<1ms latency)
