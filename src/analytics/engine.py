@@ -15,6 +15,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+type ProductID = str
+
 
 class AnalyticsEngine:
     """Subscribes to market data and computes analytics (Service 4.2)"""
@@ -22,7 +24,7 @@ class AnalyticsEngine:
     def __init__(self):
         self.redis_client: redis.Redis | None = None
         self.pubsub: PubSub | None = None
-        self.orderbook: OrderBook | None = None
+        self.orderbooks: dict[ProductID, OrderBook] | None = None
         self.should_run = False
 
     async def start(self) -> None:
@@ -42,7 +44,7 @@ class AnalyticsEngine:
         logger.info("Subscribed to %s", settings.redis_channel)
 
         # Initialise order book
-        self.orderbook = OrderBook(settings.product_id)
+        self.orderbooks = {product_id: OrderBook(product_id) for product_id in settings.product_ids}
 
         self.should_run = True
         await self._listen()
@@ -60,7 +62,7 @@ class AnalyticsEngine:
 
     async def _listen(self) -> None:
         """Listen for messages and process"""
-        assert self.orderbook is not None, "OrderBook must be initialised before listening"
+        assert self.orderbooks is not None, "OrderBook must be initialised before listening"
         logger.info("Analytics Engine listening for messages...")
         if self.pubsub:
             try:
@@ -79,29 +81,35 @@ class AnalyticsEngine:
                         # Deserialise
                         packet = HotPathPacket(**orjson.loads(message["data"]))
 
+                        updated_products = set()
+
                         # Process each event
                         for event in packet.payload.events:
                             # Skip events for other products
-                            if event.product_id != self.orderbook.product_id:
+                            if event.product_id not in self.orderbooks:
                                 continue
 
-                            success = self.orderbook.apply_event(event, packet.payload.sequence_num)
+                            success = self.orderbooks[event.product_id].apply_event(event, packet.payload.sequence_num)
 
                             if not success:
                                 logger.error("Order book corrupted, restarting service...")
                                 await self.stop()
                                 return
 
-                        # Calculate and log analytics (only if initialised)
-                        if self.orderbook.initialised:
-                            analytics = self.orderbook.get_analytics()
-                            logger.info(
-                                "Analytics | Bid: %0.2f | Ask: %0.2f | Spread: %0.2f | Mid: %0.2f",
-                                analytics.best_bid,
-                                analytics.best_ask,
-                                analytics.spread,
-                                analytics.midprice,
-                            )
+                            updated_products.add(event.product_id)
+
+                        # Calculate and log analytics only for updated products
+                        for product_id in updated_products:
+                            if self.orderbooks[product_id].initialised:
+                                analytics = self.orderbooks[product_id].get_analytics()
+                                logger.info(
+                                    "Analytics for %s | Bid: %0.2f | Ask: %0.2f | Spread: %0.2f | Mid: %0.2f",
+                                    product_id,
+                                    analytics.best_bid,
+                                    analytics.best_ask,
+                                    analytics.spread,
+                                    analytics.midprice,
+                                )
 
                     except Exception:
                         logger.exception("Error processing message")

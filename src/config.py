@@ -12,7 +12,7 @@ class Settings(BaseSettings):
 
     # Coinbase WebSocket
     coinbase_ws_url: str = "wss://advanced-trade-ws.coinbase.com"
-    product_id: str = Field(default="XRP-USD")
+    product_ids: list[str] = Field(default=["ETH-EUR", "XRP-USD"])
     channel: str = Field(default="level2")
 
     # Redis Pub/Sub (Hot Path)
