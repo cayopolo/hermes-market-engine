@@ -96,7 +96,7 @@ class AnalyticsEngine:
                         if self.orderbook.initialised:
                             analytics = self.orderbook.get_analytics()
                             logger.info(
-                                "Analytics | Bid: %s | Ask: %s | Spread: %s | Mid: %s",
+                                "Analytics | Bid: %0.2f | Ask: %0.2f | Spread: %0.2f | Mid: %0.2f",
                                 analytics.best_bid,
                                 analytics.best_ask,
                                 analytics.spread,
