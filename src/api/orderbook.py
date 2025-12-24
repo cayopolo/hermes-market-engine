@@ -77,3 +77,14 @@ async def get_asks(
     ask_levels = [OrderbookLevelResponse(price=price, size=size) for price, size in list(orderbook.asks.items())[:depth]]
 
     return ask_levels
+
+
+@router.get("/depth", response_model=dict[str, int])
+async def get_full_orderbook_depth(engine: Annotated[AnalyticsEngine, Depends(get_analytics_engine)]) -> dict[str, int]:
+    """Get full orderbook depth (number of levels on bid and ask sides)"""
+    if engine.orderbook is None:
+        raise HTTPException(status_code=503, detail="Analytics engine not initialised")
+
+    if not engine.orderbook.initialised:
+        raise HTTPException(status_code=503, detail="Orderbook snapshot not yet received")
+    return {"bid_levels": len(engine.orderbook.bids), "ask_levels": len(engine.orderbook.asks)}
