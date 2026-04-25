@@ -1,7 +1,7 @@
 # Hermes Market Engine - Current Architecture
 
-**Last Updated**: 2025-12-16
-**Status**: API Layer Complete
+**Last Updated**: 2026-04-25
+**Status**: Multi-product, TimescaleDB, History API
 
 ---
 
@@ -26,7 +26,7 @@ Hermes Market Engine is a high-performance market data platform that ingests liv
 
 ### Key Technologies
 - **Python 3.12+** with asyncio
-- **PostgreSQL** for persistent storage
+- **PostgreSQL + TimescaleDB** for persistent storage with hypertables, compression, and retention
 - **Redis** for real-time pub/sub
 - **asyncpg** for database connection pooling
 - **websockets** for Coinbase WebSocket client
@@ -78,8 +78,9 @@ graph TB
     end
 
     subgraph API["FastAPI HTTP Layer"]
-        AnalyticsAPI["GET /analytics/*<br/>• /current<br/>• /spread<br/>• /midprice"]
-        OrderbookAPI["GET /orderbook/*<br/>• /snapshot<br/>• /bids<br/>• /asks"]
+        AnalyticsAPI["GET /analytics/*<br/>• /current/{product_id}<br/>• /spread/{product_id}<br/>• /midprice/{product_id}<br/>• /imbalance/{product_id}<br/>• /vamp/{product_id}<br/>• /vamp_n/{product_id}<br/>• /products"]
+        OrderbookAPI["GET /orderbook/*<br/>• /snapshot/{product_id}<br/>• /bids/{product_id}<br/>• /asks/{product_id}<br/>• /depth/{product_id}"]
+        HistoryAPI["GET /history/*<br/>• /raw-events"]
     end
 
     Client["HTTP Client<br/>Browser/CLI"]
@@ -91,6 +92,8 @@ graph TB
     OrderbookMgr -.->|"Periodic snapshots"| Postgres
     Client -->|"HTTP Requests"| AnalyticsAPI
     Client -->|"HTTP Requests"| OrderbookAPI
+    Client -->|"HTTP Requests"| HistoryAPI
+    HistoryAPI -.->|"Query historical data"| Postgres
     AnalyticsAPI -.->|"Query live state"| OrderbookMgr
     OrderbookAPI -.->|"Query live state"| OrderbookMgr
 
@@ -104,7 +107,7 @@ graph TB
     class BatchWriter coldPath
     class Redis,Postgres storage
     class WS,WSClient,Client external
-    class AnalyticsAPI,OrderbookAPI api
+    class AnalyticsAPI,OrderbookAPI,HistoryAPI api
 ```
 
 ### 2.2 Design Principles
@@ -324,7 +327,7 @@ ON CONFLICT (connection_id, product_id, sequence_num) DO NOTHING
 
 ## 4. Analytics Service
 
-**Location**: `src/analytics/` (implementation in progress)
+**Location**: `src/analytics/`
 
 ### 4.1 Components
 
@@ -343,7 +346,8 @@ ON CONFLICT (connection_id, product_id, sequence_num) DO NOTHING
     - Spread
     - Midprice
     - Orderbook imbalance
-    - VWAP (weighted average)
+    - VAMP (volume-adjusted midprice, best level)
+    - VAMP_n (volume-adjusted midprice, n% market depth)
   - Write periodic snapshots to `orderbook_snapshot` table
 
 ---
@@ -365,42 +369,59 @@ The FastAPI layer provides HTTP endpoints for querying real-time orderbook state
 
 #### Analytics Router (`/analytics`)
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `GET /analytics/current` | GET | Full analytics snapshot (spread, midprice, imbalance, VWAP) |
-| `GET /analytics/spread` | GET | Current bid-ask spread |
-| `GET /analytics/midprice` | GET | Current mid-price (average of best bid/ask) |
+| Endpoint | Description |
+|----------|-------------|
+| `GET /analytics/products` | List configured product IDs |
+| `GET /analytics/current/{product_id}` | Full analytics snapshot |
+| `GET /analytics/spread/{product_id}` | Current bid-ask spread |
+| `GET /analytics/midprice/{product_id}` | Current mid-price |
+| `GET /analytics/imbalance/{product_id}` | Orderbook imbalance (-1 to 1) |
+| `GET /analytics/vamp/{product_id}` | Volume-adjusted midprice (best level) |
+| `GET /analytics/vamp_n/{product_id}?depth_percent=1.0` | Volume-adjusted midprice at n% depth |
 
-**Response Example** (`/analytics/current`):
+**Response Example** (`/analytics/current/{product_id}`):
 ```json
 {
   "product_id": "ETH-EUR",
-  "timestamp": "2025-12-16T13:02:51.123456Z",
+  "timestamp": "2026-04-25T13:02:51.123456Z",
   "best_bid": "2450.50",
   "best_ask": "2450.75",
   "spread": "0.25",
   "midprice": "2450.625",
   "imbalance": 0.45,
-  "vwap": "2450.60"
+  "vamp": "2450.60"
 }
 ```
 
 #### Orderbook Router (`/orderbook`)
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `GET /orderbook/snapshot?depth=10` | GET | Orderbook snapshot with top N levels |
-| `GET /orderbook/bids?depth=10` | GET | Best bid levels |
-| `GET /orderbook/asks?depth=10` | GET | Best ask levels |
+| Endpoint | Description |
+|----------|-------------|
+| `GET /orderbook/snapshot/{product_id}?depth=10` | Orderbook snapshot with top N levels |
+| `GET /orderbook/bids/{product_id}?depth=10` | Best bid levels |
+| `GET /orderbook/asks/{product_id}?depth=10` | Best ask levels |
+| `GET /orderbook/depth/{product_id}` | Total number of bid/ask levels in book |
 
 **Parameters**:
 - `depth` (query, optional, default=10, range 1-100): Number of price levels to return
 
-**Response Example** (`/orderbook/snapshot`):
+#### History Router (`/history`)
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /history/raw-events?product_id=&start_time=&end_time=` | Query raw WebSocket events from the cold path |
+
+**Parameters**:
+- `product_id` (required): Trading pair (e.g. `ETH-EUR`)
+- `start_time` / `end_time` (required): ISO 8601 datetime range
+- `event_type` (optional): Filter by `snapshot` or `update`
+- `limit` (optional, default=100, max=1000): Max rows returned
+
+**Response Example** (`/orderbook/snapshot/{product_id}`):
 ```json
 {
   "product_id": "ETH-EUR",
-  "timestamp": "2025-12-16T13:02:51.123456Z",
+  "timestamp": "2026-04-25T13:02:51.123456Z",
   "bids": [
     { "price": "2450.50", "size": "5.23" },
     { "price": "2450.25", "size": "12.15" }
@@ -545,13 +566,13 @@ class Settings(BaseSettings):
     # Database Connection
     db_user: str = Field(default="postgres", alias="DB_USER")
     db_name: str = Field(default="hermes_market_engine", alias="DB_NAME")
-    db_password: str = Field(default="", alias="DB_PASSWORD")
+    db_password: str = Field(default="postgres", alias="DB_PASSWORD")
     db_host: str = Field(default="localhost")
     db_port: int = Field(default=5432)
 
     # Coinbase WebSocket
     coinbase_ws_url: str = "wss://advanced-trade-ws.coinbase.com"
-    product_id: str = Field(default="ETH-EUR")
+    product_ids: list[str] = Field(default=["ETH-EUR", "XRP-USD"])  # multi-product
     channel: str = Field(default="level2")
 
     # Redis Pub/Sub (Hot Path)
@@ -564,6 +585,10 @@ class Settings(BaseSettings):
     db_pool_min_size: int = Field(default=2, alias="DB_POOL_MIN_SIZE")
     db_pool_max_size: int = Field(default=10, alias="DB_POOL_MAX_SIZE")
     db_max_retry_attempts: int = Field(default=3, alias="DB_MAX_RETRY_ATTEMPTS")
+
+    # API Server
+    api_host: str = Field(default="127.0.0.1")
+    api_port: int = Field(default=8000)
 
     # Logging
     log_level: str = Field(default="INFO")
@@ -701,16 +726,17 @@ redis-cli
 
 ### 10.1 Planned Features
 - [x] FastAPI REST endpoints for analytics and orderbook
+- [x] Historical queries against raw_events_stream (`/history/raw-events`)
+- [x] Multi-product support
 - [ ] Historical queries against orderbook_snapshot table
-- [x] WebSocket streaming API for live orderbook updates
+- [ ] WebSocket streaming API for live orderbook updates
 - [ ] Dashboard UI (React/Next.js)
 - [ ] Support additional Coinbase channels (trades, ticker)
-- [ ] Multi-product support (ETH-EUR, BTC-USD, etc.)
 
 ### 9.2 Performance Optimisations
 - [ ] Numba JIT compilation for analytics calculations
 - [ ] Shared memory for ultra-low-latency snapshots
-- [ ] TimescaleDB for time-series optimisation
+- [x] TimescaleDB for time-series optimisation (hypertables, compression, 120-day retention)
 - [ ] Partitioning for raw_events_stream table
 
 ### 9.3 Reliability Improvements
