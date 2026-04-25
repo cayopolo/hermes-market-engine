@@ -30,6 +30,11 @@ class Settings(BaseSettings):
     api_host: str = Field(default="127.0.0.1")  # 127.0.0.1 for localhost only
     api_port: int = Field(default=8000)
 
+    # Dashboard
+    dashboard_host: str = Field(default="127.0.0.1")
+    dashboard_port: int = Field(default=8050)
+    api_base_url: str = Field(default="http://127.0.0.1:8000", alias="HERMES_API_URL")
+
     # Logging
     log_level: str = Field(default="INFO")
 
