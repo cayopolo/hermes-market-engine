@@ -51,11 +51,7 @@ def update_charts(ts_data: dict | None, product_id: str | None) -> tuple:
     fig_mid = go.Figure()
     fig_mid.add_trace(
         go.Scatter(
-            x=timestamps,
-            y=midprices,
-            name="Midprice",
-            line={"color": "#58a6ff", "width": 1.5},
-            hovertemplate="%{y:.2f}<extra>Mid</extra>",
+            x=timestamps, y=midprices, name="Midprice", line={"color": "#58a6ff", "width": 1.5}, hovertemplate="%{y:.2f}<extra>Mid</extra>"
         )
     )
     if any(v is not None for v in vamps):

@@ -69,19 +69,12 @@ def refresh_products(_n: int, current_value: str | None) -> tuple:
     return options, value
 
 
-@callback(
-    Output("poll-interval", "disabled"),
-    Input("product-selector", "value"),
-)
+@callback(Output("poll-interval", "disabled"), Input("product-selector", "value"))
 def toggle_poll_interval(value: str | None) -> bool:
     return value is None
 
 
-@callback(
-    Output("api-error-banner", "style"),
-    Output("api-error-banner", "children"),
-    Input("api-status", "data"),
-)
+@callback(Output("api-error-banner", "style"), Output("api-error-banner", "children"), Input("api-status", "data"))
 def update_error_banner(status: str | None) -> tuple:
     if status == "error":
         return {"display": "block"}, "API unreachable — retrying every 2s"
